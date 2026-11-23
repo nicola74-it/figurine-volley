@@ -1,0 +1,30 @@
+[
+  {
+    "id": 1,
+    "nome": "Marco Rossi",
+    "soprannome": "Mani di Piuma",
+    "numero": "1",
+    "ruolo": "Palleggiatore",
+    "tema": "purple",
+    "fiato": 70,
+    "altezza": "178 cm",
+    "elevazione": "2 fogli A4",
+    "foto": "",
+    "scusa": "Era alzata tesa, sei tu che sei partito in ritardo!",
+    "mossa1Nome": "Doppia Invisibile",
+    "mossa1Danno": "40+",
+    "mossa1Desc": "L'arbitro fischia ma lui giura che la palla girava dritta.",
+    "mossa2Nome": "Alzata al Soffitto",
+    "mossa2Danno": "80",
+    "mossa2Desc": "Colpisce i neon della palestra accecando i centrali.",
+    "debolezza": "Ricezione staccata x2",
+    "ritirata": "1 Giro di Birre",
+    "batt": 6,
+    "ric": 5,
+    "att": 4,
+    "dif": 6,
+    "muro": 4,
+    "alz": 8,
+    "note": "Porta sempre patatine e taralli, ma finisce le birre degli altri."
+  }
+]

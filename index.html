@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Album Figurine & Carte Volley TCG</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header class="toolbar">
+      <h1>🏐 Album Figurine & Carte Volley</h1>
+      <div class="toolbar-actions">
+        <button class="btn btn-blue" @click="triggerImport">📂 Importa .JSON</button>
+        <input type="file" ref="jsonFileInput" accept=".json,application/json" style="display:none" @change="importJsonFile">
+        <button class="btn btn-blue" @click="openJsonModal">📋 Vedi / Modifica JSON</button>
+        <button class="btn btn-green" @click="downloadJson">💾 Esporta .JSON</button>
+        <button class="btn btn-gold" @click="printSingleCard" :disabled="!currentPlayer">🖨️ Stampa Carta</button>
+        <button class="btn btn-gold" @click="printAllCards" :disabled="players.length === 0">📚 Stampa Album ({{ players.length }})</button>
+        <button class="btn btn-red" @click="resetDefaultData" title="Ripristina giocatore iniziale casuale">↺ Reset</button>
+      </div>
+    </header>
+
+    <div class="container">
+      <!-- BARRA LATERALE ROSA -->
+      <aside class="roster-panel">
+        <div class="roster-header">
+          <h3>Rosa ({{ players.length }})</h3>
+          <button class="btn btn-green btn-sm" @click="addPlayer">+ Aggiungi</button>
+        </div>
+
+        <ul class="player-list" v-if="players.length > 0">
+          <li
+            v-for="(p, idx) in players"
+            :key="p.id"
+            class="player-item"
+            :class="{ active: idx === selectedIndex }"
+            @click="selectPlayer(idx)"
+          >
+            <div class="player-item-info">
+              <span class="badge-num">#{{ p.numero }}</span>
+              <span class="player-item-name">{{ p.nome }}</span>
+            </div>
+            <span class="player-role-tag">{{ p.ruolo }}</span>
+          </li>
+        </ul>
+        <p v-else class="empty-msg">Nessun giocatore in rosa. Clicca su "+ Aggiungi".</p>
+      </aside>
+
+      <!-- AREA DI LAVORO -->
+      <main class="workspace" v-if="currentPlayer">
+        <!-- PANNELLO EDITOR -->
+        <section class="editor-panel">
+          <div class="editor-header">
+            <h3>
+              Scheda: {{ activeData.nome }}
+              <span v-if="isEditing" class="edit-badge">IN MODIFICA</span>
+            </h3>
+            <div class="editor-actions">
+              <template v-if="!isEditing">
+                <button class="btn btn-blue" @click="startEditing">✏️ Modifica</button>
+                <button class="btn btn-red" @click="deletePlayer">🗑️ Elimina</button>
+              </template>
+              <template v-else>
+                <button class="btn btn-green" @click="saveEditing">✅ Conferma Modifiche</button>
+                <button class="btn btn-gray" @click="cancelEditing">✖ Annulla</button>
+              </template>
+            </div>
+          </div>
+
+          <fieldset :disabled="!isEditing" class="editor-fieldset">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Nome e Cognome</label>
+                <input type="text" v-model="activeData.nome">
+              </div>
+              <div class="form-group">
+                <label>Soprannome da Spogliatoio</label>
+                <input type="text" v-model="activeData.soprannome">
+              </div>
+
+              <div class="form-group">
+                <label>Numero Maglia</label>
+                <input type="text" v-model="activeData.numero">
+              </div>
+              <div class="form-group">
+                <label>Ruolo in Campo</label>
+                <select v-model="activeData.ruolo">
+                  <option>Schiacciatore</option>
+                  <option>Palleggiatore</option>
+                  <option>Centrale</option>
+                  <option>Opposto</option>
+                  <option>Libero</option>
+                  <option>Allenatore / Mister</option>
+                  <option>Panchinaro di Lusso</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>Fiato (PS / Punti Salute)</label>
+                <input type="number" v-model.number="activeData.fiato" step="10">
+              </div>
+              <div class="form-group">
+                <label>Colore Cornice Carta</label>
+                <select v-model="activeData.tema">
+                  <option value="gold">Oro Rara (Gold Edition)</option>
+                  <option value="blue">Blu Panini Classica</option>
+                  <option value="red">Rosso Fuoco (Attaccante)</option>
+                  <option value="green">Verde (Difesa / Libero)</option>
+                  <option value="purple">Viola Epica (Palleggio)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>Altezza (cm)</label>
+                <input type="text" v-model="activeData.altezza">
+              </div>
+              <div class="form-group">
+                <label>Elevazione (fogli A4 o cm)</label>
+                <input type="text" v-model="activeData.elevazione">
+              </div>
+
+              <div class="form-group full">
+                <label>Foto Atleta (File locale o URL immagine)</label>
+                <div class="photo-inputs">
+                  <input type="file" accept="image/*" @change="onPhotoUpload">
+                  <input type="text" v-model="activeData.foto" placeholder="https://...">
+                </div>
+              </div>
+
+              <div class="form-group full">
+                <label>Scusa Istantanea (Abilità Passiva)</label>
+                <input type="text" v-model="activeData.scusa">
+              </div>
+
+              <div class="form-group">
+                <label>Mossa 1 - Nome</label>
+                <input type="text" v-model="activeData.mossa1Nome">
+              </div>
+              <div class="form-group">
+                <label>Mossa 1 - Danno</label>
+                <input type="text" v-model="activeData.mossa1Danno">
+              </div>
+              <div class="form-group full">
+                <label>Mossa 1 - Descrizione</label>
+                <input type="text" v-model="activeData.mossa1Desc">
+              </div>
+
+              <div class="form-group">
+                <label>Mossa 2 - Nome</label>
+                <input type="text" v-model="activeData.mossa2Nome">
+              </div>
+              <div class="form-group">
+                <label>Mossa 2 - Danno</label>
+                <input type="text" v-model="activeData.mossa2Danno">
+              </div>
+              <div class="form-group full">
+                <label>Mossa 2 - Descrizione</label>
+                <input type="text" v-model="activeData.mossa2Desc">
+              </div>
+
+              <div class="form-group">
+                <label>Debolezza</label>
+                <input type="text" v-model="activeData.debolezza">
+              </div>
+              <div class="form-group">
+                <label>Costo Ritirata / Terzo Tempo</label>
+                <input type="text" v-model="activeData.ritirata">
+              </div>
+
+              <!-- VOTI FONDAMENTALI -->
+              <div class="form-group full">
+                <label>Voti Fondamentali (1 - 10)</label>
+                <div class="stats-inputs-grid">
+                  <div><span>Batt</span><input type="number" min="1" max="10" v-model.number="activeData.batt"></div>
+                  <div><span>Ric</span><input type="number" min="1" max="10" v-model.number="activeData.ric"></div>
+                  <div><span>Att</span><input type="number" min="1" max="10" v-model.number="activeData.att"></div>
+                  <div><span>Dif</span><input type="number" min="1" max="10" v-model.number="activeData.dif"></div>
+                  <div><span>Muro</span><input type="number" min="1" max="10" v-model.number="activeData.muro"></div>
+                  <div><span>Alz</span><input type="number" min="1" max="10" v-model.number="activeData.alz"></div>
+                </div>
+              </div>
+
+              <div class="form-group full">
+                <label>Specialità Terzo Tempo & Note del Mister</label>
+                <textarea rows="2" v-model="activeData.note"></textarea>
+              </div>
+            </div>
+          </fieldset>
+        </section>
+
+        <!-- ANTEPRIMA CARTA SINGOLA -->
+        <aside class="card-wrapper single-card-view">
+          <div class="tcg-card" :class="'theme-' + activeData.tema">
+            <div class="tcg-inner">
+              <div class="card-header">
+                <span class="card-role-badge">{{ activeData.ruolo }}</span>
+                <span class="edition-tag">EDIZIONE SPOGLIATOIO</span>
+              </div>
+
+              <div class="card-title-row">
+                <div>
+                  <h2 class="card-name">{{ activeData.nome }}</h2>
+                  <div class="card-nickname">"{{ activeData.soprannome }}"</div>
+                </div>
+                <div class="card-hp"><small>FIATO</small> {{ activeData.fiato }} PS 🏐</div>
+              </div>
+
+              <div class="card-photo-frame">
+                <img v-if="activeData.foto" :src="activeData.foto" alt="Foto Atleta">
+                <div v-else class="photo-placeholder">
+                  📸 Nessuna foto caricata<br><small>(Clicca su Modifica per inserirla)</small>
+                </div>
+                <div class="jersey-stamp">#{{ activeData.numero }}</div>
+              </div>
+
+              <div class="card-specs-bar">
+                Alt: {{ activeData.altezza }} | Elevazione: {{ activeData.elevazione }} | Peso: Top Secret
+              </div>
+
+              <div class="card-ability">
+                <span class="ability-tag">Scusa Istantanea</span>
+                <span>{{ activeData.scusa }}</span>
+              </div>
+
+              <div class="card-moves">
+                <div class="move-row">
+                  <div class="move-info">
+                    <div class="move-title">🏐 {{ activeData.mossa1Nome }}</div>
+                    <div class="move-desc">{{ activeData.mossa1Desc }}</div>
+                  </div>
+                  <div class="move-dmg">{{ activeData.mossa1Danno }}</div>
+                </div>
+
+                <div class="move-row">
+                  <div class="move-info">
+                    <div class="move-title">🔥 {{ activeData.mossa2Nome }}</div>
+                    <div class="move-desc">{{ activeData.mossa2Desc }}</div>
+                  </div>
+                  <div class="move-dmg">{{ activeData.mossa2Danno }}</div>
+                </div>
+              </div>
+
+              <div class="card-stats-footer">
+                <div>Debolezza<strong>{{ activeData.debolezza }}</strong></div>
+                <div>Resistenza<strong>Terzo Tempo -30</strong></div>
+                <div>Ritirata<strong>{{ activeData.ritirata }}</strong></div>
+              </div>
+
+              <div class="card-stats-footer2">
+                <div>Batt<strong>{{ activeData.batt ?? 5 }}</strong></div>
+                <div>Ric<strong>{{ activeData.ric ?? 5 }}</strong></div>
+                <div>Att<strong>{{ activeData.att ?? 5 }}</strong></div>
+                <div>Dif<strong>{{ activeData.dif ?? 5 }}</strong></div>
+                <div>Muro<strong>{{ activeData.muro ?? 5 }}</strong></div>
+                <div>Alz<strong>{{ activeData.alz ?? 5 }}</strong></div>
+              </div>
+
+              <div class="card-pokedex">
+                <strong>Terzo Tempo:</strong> {{ activeData.note }}
+              </div>
+
+              <div class="card-bottom-meta">
+                <span>Carta #{{ String(selectedIndex + 1).padStart(2, '0') }}/{{ String(players.length).padStart(2, '0') }}</span>
+                <span>★ RARA OLOGRAFICA</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <!-- GRIGLIA PER STAMPA ALBUM COMPLETO -->
+    <div class="print-album-grid">
+      <div v-for="(p, idx) in players" :key="'print-' + p.id" class="tcg-card" :class="'theme-' + p.tema">
+        <div class="tcg-inner">
+          <div class="card-header">
+            <span class="card-role-badge">{{ p.ruolo }}</span>
+            <span class="edition-tag">EDIZIONE SPOGLIATOIO</span>
+          </div>
+          <div class="card-title-row">
+            <div>
+              <h2 class="card-name">{{ p.nome }}</h2>
+              <div class="card-nickname">"{{ p.soprannome }}"</div>
+            </div>
+            <div class="card-hp"><small>FIATO</small> {{ p.fiato }} PS 🏐</div>
+          </div>
+          <div class="card-photo-frame">
+            <img v-if="p.foto" :src="p.foto" alt="Foto">
+            <div v-else class="photo-placeholder">Incolla qui foto post-partita</div>
+            <div class="jersey-stamp">#{{ p.numero }}</div>
+          </div>
+          <div class="card-specs-bar">
+            Alt: {{ p.altezza }} | Elevazione: {{ p.elevazione }} | Peso: Top Secret
+          </div>
+          <div class="card-ability">
+            <span class="ability-tag">Scusa Istantanea</span>
+            <span>{{ p.scusa }}</span>
+          </div>
+          <div class="card-moves">
+            <div class="move-row">
+              <div class="move-info">
+                <div class="move-title">🏐 {{ p.mossa1Nome }}</div>
+                <div class="move-desc">{{ p.mossa1Desc }}</div>
+              </div>
+              <div class="move-dmg">{{ p.mossa1Danno }}</div>
+            </div>
+            <div class="move-row">
+              <div class="move-info">
+                <div class="move-title">🔥 {{ p.mossa2Nome }}</div>
+                <div class="move-desc">{{ p.mossa2Desc }}</div>
+              </div>
+              <div class="move-dmg">{{ p.mossa2Danno }}</div>
+            </div>
+          </div>
+          <div class="card-stats-footer">
+            <div>Debolezza<strong>{{ p.debolezza }}</strong></div>
+            <div>Resistenza<strong>Terzo Tempo -30</strong></div>
+            <div>Ritirata<strong>{{ p.ritirata }}</strong></div>
+          </div>
+          <div class="card-stats-footer2">
+            <div>Batt<strong>{{ p.batt ?? 5 }}</strong></div>
+            <div>Ric<strong>{{ p.ric ?? 5 }}</strong></div>
+            <div>Att<strong>{{ p.att ?? 5 }}</strong></div>
+            <div>Dif<strong>{{ p.dif ?? 5 }}</strong></div>
+            <div>Muro<strong>{{ p.muro ?? 5 }}</strong></div>
+            <div>Alz<strong>{{ p.alz ?? 5 }}</strong></div>
+          </div>
+          <div class="card-pokedex">
+            <strong>Terzo Tempo:</strong> {{ p.note }}
+          </div>
+          <div class="card-bottom-meta">
+            <span>Carta #{{ String(idx + 1).padStart(2, '0') }}/{{ String(players.length).padStart(2, '0') }}</span>
+            <span>★ RARA OLOGRAFICA</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODALE JSON -->
+    <div class="modal-backdrop" v-if="showJsonModal" @click.self="showJsonModal = false">
+      <div class="modal-box">
+        <h3>Dati Squadra in formato JSON</h3>
+        <p class="modal-desc">Copia il JSON per salvarlo oppure incolla un JSON aggiornato e clicca su "Applica JSON".</p>
+        <textarea v-model="jsonBuffer"></textarea>
+        <div class="modal-actions">
+          <button class="btn btn-gray" @click="showJsonModal = false">Chiudi</button>
+          <button class="btn btn-green" @click="applyJson">Applica JSON</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
